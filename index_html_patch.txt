@@ -1,0 +1,64 @@
+## ПАТЧ ДЛЯ INDEX.HTML — ДОБАВЛЕНИЕ РАБОТЫ С ИСТОРИЕЙ
+
+### 1. Функция openChat (строка ~745)
+
+ЗАМЕНИТЬ:
+```javascript
+async function openChat(id){
+  if(busy) return;
+  try{
+    const r = await fetch('/api/chats/' + id);
+    const d = await r.json();
+```
+
+НА:
+```javascript
+async function openChat(id){
+  if(busy) return;
+  try{
+    const r = await fetch('/api/chats/' + id + '/messages');
+    const d = await r.json();
+```
+
+### 2. Функция send — добавить сохранение user-сообщения (после строки ~614, где создаётся чат)
+
+ПОСЛЕ БЛОКА:
+```javascript
+  // Ensure we have a chat
+  if(!currentChatId){
+    try{
+      const cr = await fetch('/api/chats',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+      const cd = await cr.json();
+      currentChatId = cd.id;
+      await loadChatList();
+    }catch(e){console.error('create chat', e);}
+  }
+```
+
+ДОБАВИТЬ:
+```javascript
+  // Save user message to DB
+  if(currentChatId){
+    try{
+      await fetch('/api/chats/' + currentChatId + '/message', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({role: 'user', content: content})
+      });
+    }catch(e){console.error('save user msg', e);}
+  }
+```
+
+### 3. Сохранение assistant-сообщения уже реализовано в main.py
+
+В функции `chat_stream` бэкенд автоматически сохраняет ответ ассистента в базу когда получает `chat_id`.
+
+---
+
+## ИТОГ
+
+После этого патча:
+- При открытии чата фронт грузит историю с `/api/chats/{id}/messages`
+- При отправке user-сообщения оно сразу сохраняется в базу
+- Ответ ассистента сохраняется бэкендом автоматически
+- История чата сохраняется между перезагрузками страницы
